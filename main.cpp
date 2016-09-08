@@ -37,13 +37,13 @@ namespace Pricer
 
         using order_id_t = std::pair<order_book_it_t, size_t>;
         using order_book_id_t = std::unordered_map<char, order_id_t>;
-        using price_level_map_t = std::unordered_map<price_t, order_book_it_t>;
+        //using price_level_map_t = std::unordered_map<price_t, order_book_it_t>;
     private:
         uint64_t _total_orders;
 
         order_book_t _orders;
         order_book_id_t _order_ids;
-        price_level_map_t _price_levels;
+        //price_level_map_t _price_levels;
 
         void add_order(const Pricer::Order &order)
         {
@@ -55,20 +55,19 @@ namespace Pricer
             const auto &add_order_info = boost::get<Pricer::AddOrder>(order._order);
             const price_t price_as_int = Pricer::Utils::convert_price( add_order_info.limit_price );
 
-			const auto price_level_found_it = _price_levels.find(price_as_int);
-            if( _price_levels.end() != price_level_found_it )
+			const auto price_level_found_it = _orders.find(price_as_int);
+            if( _orders.end() != price_level_found_it )
             {
-                const order_book_it_t &it = price_level_found_it->second;
-				price_levels_t &levels = it->second;
+				std::deque<uint32_t> &levels = price_level_found_it->second;
 				levels.push_back(order.size);
-				_order_ids[order.id] = std::make_pair(it, levels.size() - 1);
+				_order_ids[order.id] = std::make_pair(price_level_found_it, levels.size() - 1);
             }
 			else
 			{
-				const order_book_t::value_type price_level = std::make_pair(price_as_int, price_levels_t({ order.size }));
-				const std::pair<order_book_it_t, bool> insert_result = _orders.insert(price_level);
+				const std::pair<order_book_it_t, bool> insert_result = _orders.insert(price_as_int);
+				std::deque<uint32_t> &levels = insert_result.first->second;
+				levels.push_back(order.size);
 				_order_ids[order.id] = std::make_pair(insert_result.first, 0);
-				_price_levels[price_as_int] = insert_result.first;
 			}
 			_total_orders += order.size;
         }
