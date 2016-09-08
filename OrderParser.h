@@ -17,7 +17,7 @@ namespace Pricer
 
 	struct ReduceOrder{};
 
-	static std::map<char, ADD_ORDER_TYPE> char_to_add_order = { { 'B', ADD_ORDER_TYPE::BID }, { 'A', ADD_ORDER_TYPE::ASK } };
+	static std::map<char, ADD_ORDER_TYPE> char_to_add_order = { { 'B', ADD_ORDER_TYPE::BID }, { 'S', ADD_ORDER_TYPE::ASK } };
 	static std::map<char, ORDER_TYPE> char_to_order = { { 'A', ORDER_TYPE::ADD }, { 'R', ORDER_TYPE::REDUCE } };
 
 	struct Order
@@ -71,6 +71,8 @@ namespace Pricer
 					add_order_type,
 					limit_price
 				};
+				std::advance(it, 1);
+				order.size = boost::lexical_cast<decltype(order.size)>(*it);
 				break;
 			}
 			case ORDER_TYPE::REDUCE:

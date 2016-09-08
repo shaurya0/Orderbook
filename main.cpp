@@ -5,19 +5,108 @@
 #include <atomic>
 #include <utility>
 #include <unordered_map>
+#include <deque>
 #include <map>
 
 namespace Pricer
 {
-	class OrderBook
+    class Utils
+    {
+	public:
+        static uint64_t convert_price( double price )
+        {
+            return static_cast<uint64_t>( price*100 );
+        }
+
+        static double convert_price( uint64_t price )
+        {
+            return static_cast<double>( price )/100.0;
+        }
+    };
+
+	template<typename CMP_FUNC>
+    class OrderBook2
+    {
+    public:
+        using quantity_t = uint32_t;
+        using price_t = uint64_t;
+        using price_levels_t = std::deque<quantity_t>;
+
+        using order_book_t = std::map<price_t, price_levels_t>;
+        using order_book_it_t = order_book_t::iterator;
+
+        using order_id_t = std::pair<order_book_it_t, size_t>;
+        using order_book_id_t = std::unordered_map<char, order_id_t>;
+        using price_level_map_t = std::unordered_map<price_t, order_book_it_t>;
+    private:
+        uint64_t _total_orders;
+
+        order_book_t _orders;
+        order_book_id_t _order_ids;
+        price_level_map_t _price_levels;
+
+        void add_order(const Pricer::Order &order)
+        {
+            const bool found_order = _order_ids.end() != _order_ids.find(order.id);
+
+            if( found_order )
+                throw std::exception( "two outstanding adds with same id" );
+
+            const auto &add_order_info = boost::get<Pricer::AddOrder>(order._order);
+            const price_t price_as_int = Pricer::Utils::convert_price( add_order_info.limit_price );
+
+			const auto price_level_found_it = _price_levels.find(price_as_int);
+            if( _price_levels.end() != price_level_found_it )
+            {
+                const order_book_it_t &it = price_level_found_it->second;
+				price_levels_t &levels = it->second;
+				levels.push_back(order.size);
+				_order_ids[order.id] = std::make_pair(it, levels.size() - 1);
+            }
+			else
+			{
+				const order_book_t::value_type price_level = std::make_pair(price_as_int, price_levels_t({ order.size }));
+				const std::pair<order_book_it_t, bool> insert_result = _orders.insert(price_level);
+				_order_ids[order.id] = std::make_pair(insert_result.first, 0);
+				_price_levels[price_as_int] = insert_result.first;
+			}
+			_total_orders += order.size;
+        }
+
+        void reduce_order(const Pricer::Order &order)
+        {
+			auto found_it = _order_ids.find(order.id);
+			const bool found = found_it != _order_ids.end();
+			if (!found)
+				return;
+
+			std::deque<uint32_t> &levels = found_it->second;			
+			size_t index = found_it->second.second;
+			uint32_t previous_size = levels[index];
+			if (order.size >= previous_size)
+			{
+				levels.erase(index);
+			}
+			else
+			{
+				levels[index] -= order.size;
+			}
+        }
+    };
+
+	class OrderBook1
 	{
-	private:
+	public:
 		using quantity_t = uint32_t;
 		using price_t = double;
 
 		using order_book_t = std::map <price_t, quantity_t>;
 		using order_book_it = order_book_t::iterator;
-		using order_book_id_t = std::unordered_map < char, order_book_it > ;
+		using order_book_id_t = std::unordered_map < char, order_book_it >;
+
+	private:
+		uint64_t _total_asks;
+		uint64_t _total_bids;
 
 		order_book_t _bid_orders;
 		order_book_id_t _bid_order_ids;
@@ -36,16 +125,22 @@ namespace Pricer
 
 			const order_book_t::value_type price_quantity = std::make_pair(add_order_info.limit_price, order.size);
 
-			auto &order_book = _bid_orders;
-			auto &order_id_book = _bid_order_ids;
 			if (add_order_info.order_type == Pricer::ADD_ORDER_TYPE::ASK)
 			{
-				order_book = _ask_orders;
-				order_id_book = _ask_order_ids;
+				auto &order_book = _ask_orders;
+				auto &order_id_book = _ask_order_ids;
+				_total_asks += order.size;
+				const std::pair<order_book_it, bool> insert_result = order_book.insert(price_quantity);
+				order_id_book[order.id] = insert_result.first;
 			}
-
-			const std::pair<order_book_it, bool> insert_result = order_book.insert(price_quantity);
-			order_id_book[order.id] = insert_result.first;
+			else
+			{
+				auto &order_book = _bid_orders;
+				auto &order_id_book = _bid_order_ids;
+				_total_bids += order.size;
+				const std::pair<order_book_it, bool> insert_result = order_book.insert(price_quantity);
+				order_id_book[order.id] = insert_result.first;
+			}
 		}
 
 		void reduce_order(const Pricer::Order &order)
@@ -53,7 +148,7 @@ namespace Pricer
 			bool found_bid = _bid_order_ids.end() != _bid_order_ids.find(order.id);
 			bool found_ask = _ask_order_ids.end() != _ask_order_ids.find(order.id);
 			if (!found_bid || !found_ask)
-				throw std::exception("did not find reduce order id");
+				throw std::exception("did not find order id");
 
 			auto &order_book = _bid_orders;
 			auto &order_id_book = _bid_order_ids;
@@ -77,7 +172,8 @@ namespace Pricer
 		}
 
 	public:
-		OrderBook(){}
+		OrderBook1() :_total_asks(0), _total_bids(0) {}
+
 		void process_order(const Pricer::Order &order)
 		{
 			switch (order.type)
@@ -91,10 +187,14 @@ namespace Pricer
 			}
 		}
 
+		const order_book_t &get_bid_orders() const noexcept { return _bid_orders; };
+		const order_book_t &get_ask_orders() const noexcept { return _ask_orders; };
 	};
+
 	class PricingEngine
 	{
 	private:
+		OrderBook1 order_book;
 		long int _target_size;
 	public:
 		PricingEngine(long int target_size) : _target_size(target_size){}
@@ -102,7 +202,7 @@ namespace Pricer
 		void init(){}
 		void process(const Pricer::Order &order)
 		{
-
+			order_book.process_order(order);
 		}
 	};
 }
@@ -118,6 +218,7 @@ public:
 };
 
 static std::atomic<bool> cancelled = false;
+
 void run_pricing_engine(long int target_size)
 {
 	std::string strbuf;
