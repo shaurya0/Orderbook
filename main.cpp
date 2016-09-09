@@ -63,7 +63,7 @@ namespace Pricer
             }
 			else
 			{
-                const auto key_value = std::make_pair( order.id, order.size );
+				const auto key_value = std::make_pair(price_as_int, price_levels_t{ {order.id, order.size} });
                 const auto insert_result = _orders.insert( key_value );
 				_order_ids[order.id] = insert_result.first;
 			}
