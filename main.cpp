@@ -31,14 +31,12 @@ namespace Pricer
     public:
         using quantity_t = uint32_t;
         using price_t = uint64_t;
-        using price_levels_t = std::list<quantity_t>;
 
+        using price_levels_t = std::unordered_map<char, quantity_t>;
         using order_book_t = std::map<price_t, price_levels_t, CMP_FUNC>;
-        typedef typename order_book_t::iterator order_book_it_t;
 
-		using order_ptr = std::list<uint32_t>::iterator;
-        using order_id_t = std::pair<order_book_it_t, order_ptr>;
-        using order_book_id_t = std::unordered_map<char, order_id_t>;
+		typedef typename order_book_t::iterator order_book_it_t;
+        using order_book_id_t = std::unordered_map<char, order_book_it_t>;
     private:
         uint64_t _total_orders;
 
@@ -59,17 +57,15 @@ namespace Pricer
 			const auto price_level_found_it = _orders.find(price_as_int);
             if( _orders.end() != price_level_found_it )
             {
-				std::list<uint32_t> &levels = price_level_found_it->second;
-				levels.push_back(order.size);
-				_order_ids[order.id] = std::make_pair(price_level_found_it, --levels.end());
+				price_levels_t &levels = price_level_found_it->second;
+                levels[order.id] = order.size;
+				_order_ids[order.id] = price_level_found_it;
             }
 			else
 			{
-				const auto key_value = std::make_pair(price_as_int, std::list<uint32_t>{order.size});
-				const std::pair<order_book_it_t, bool> insert_result = _orders.insert(key_value);
-				std::list<uint32_t> &levels = insert_result.first->second;
-				levels.push_back(order.size);
-				_order_ids[order.id] = std::make_pair(insert_result.first, levels.begin());
+                const auto key_value = std::make_pair( order.id, order.size );
+                const auto insert_result = _orders.insert( key_value );
+				_order_ids[order.id] = insert_result.first;
 			}
 			_total_orders += order.size;
         }
@@ -77,24 +73,23 @@ namespace Pricer
         void reduce_order(const Pricer::Order &order)
         {
 			auto found_it = _order_ids.find(order.id);
-			//std::pair<order_book_it_t, size_t> p = found_it->second;
-			//order_book_it_t tt = p.first;
-			//uint64_t xx =tt->first;
-			//std::deque<uint32_t> &dq = tt->second;
 			const bool found = found_it != _order_ids.end();
 			if (!found)
+            {
+				std::cout << "could not find order with id : " << order.id << std::endl;
 				return;
+            }
 
-			std::list<uint32_t> &levels = found_it->second.first->second;
-			auto it = found_it->second.second;
-			uint32_t previous_size = *it;
+			const auto order_it = found_it->second;
+			price_levels_t &levels = order_it->second;
+			uint32_t previous_size = levels[order.id];
 			if (order.size >= previous_size)
 			{
-				levels.erase(it);
+				levels.erase(order.id);
 			}
 			else
 			{
-				*it -= order.size;
+				levels[order.id] = previous_size - order.size;
 			}
         }
 
@@ -168,6 +163,9 @@ namespace Pricer
 				process_reduce_order(order);
 				break;
             }
+
+            //print maximum selling income
+            //print minimum buying amount
 		}
 	};
 }

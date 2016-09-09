@@ -9,6 +9,23 @@ namespace Pricer
 {
 	enum class ADD_ORDER_TYPE{ BID, ASK };
 	enum class ORDER_TYPE{ ADD, REDUCE };
+    struct AddOrder_
+    {
+        uint32_t milliseconds;
+        char id;
+        uint32_t size;
+        ADD_ORDER_TYPE order_type;
+        double limit_price;
+    };
+
+    struct ReduceOrder_
+    {
+        uint32_t milliseconds;
+        char id;
+        uint32_t size;
+        double limit_price;
+    };
+
 	struct AddOrder
 	{
 		ADD_ORDER_TYPE order_type;
