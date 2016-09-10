@@ -1,3 +1,5 @@
+#pragma once
+#include "PricerCommon.h"
 #include <iostream>
 #include <stdlib.h>
 #include <signal.h>
@@ -10,20 +12,6 @@
 
 namespace Pricer
 {
-    class Utils
-    {
-    public:
-        static uint64_t convert_price( double price )
-        {
-            return static_cast<uint64_t>( price*100 );
-        }
-
-        static double convert_price( uint64_t price )
-        {
-            return static_cast<double>( price )/100.0;
-        }
-    };
-
     template<typename CMP_FUNC>
     class OrderBook
     {
@@ -36,19 +24,19 @@ namespace Pricer
 
         typedef typename order_book_t::iterator order_book_it_t;
         using order_book_id_t = std::unordered_map<char, order_book_it_t>;
+
     private:
         uint64_t _total_orders;
-
         order_book_t _orders;
         order_book_id_t _order_ids;
 
     public:
-        void add_order(const Pricer::Order &order)
+        Pricer::ErrorCode add_order(const Pricer::Order &order) noexcept
         {
             const bool found_order = _order_ids.end() != _order_ids.find(order.id);
 
             if( found_order )
-                throw std::exception( "two outstanding adds with same id" );
+                return ErrorCode::ADD_FAILED;
 
             const auto &add_order_info = boost::get<Pricer::AddOrder>(order._order);
             const price_t price_as_int = Pricer::Utils::convert_price( add_order_info.limit_price );
@@ -67,17 +55,16 @@ namespace Pricer
                 _order_ids[order.id] = insert_result.first;
             }
             _total_orders += order.size;
+
+            return ErrorCode::NONE;
         }
 
-        void reduce_order(const Pricer::Order &order)
+        Pricer::ErrorCode reduce_order(const Pricer::Order &order) noexcept
         {
             auto found_it = _order_ids.find(order.id);
             const bool found = found_it != _order_ids.end();
             if (!found)
-            {
-                std::cout << "could not find order with id : " << order.id << std::endl;
-                return;
-            }
+                return ErrorCode::REDUCE_FAILED;
 
             const auto order_it = found_it->second;
             price_levels_t &levels = order_it->second;
@@ -90,6 +77,7 @@ namespace Pricer
             {
                 levels[order.id] = previous_size - order.size;
             }
+            return ErrorCode::NONE;
         }
 
         const order_book_t &get_orders() const noexcept { return _orders; }
