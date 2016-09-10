@@ -5,6 +5,7 @@
 #include <boost/tokenizer.hpp>
 #include <boost/variant.hpp>
 #include <string>
+#include "PricerCommon.h"
 
 namespace Pricer
 {
@@ -32,65 +33,78 @@ namespace Pricer
 		boost::variant<AddOrder, ReduceOrder> _order;
 	};
 
-
-
 	class OrderParser
 	{
 	private:
 		using tokenizer = boost::tokenizer<boost::char_separator<char>>;
 		using token_iterator = tokenizer::iterator;
 
-		template<typename Source, typename Target>
-		bool try_lexical_cast( const Source& source, Target& result )
+		template<typename Target>
+		static bool try_parse_token( token_iterator &token, Target& result )
 		{
-			return conversion::try_lexical_convert( source, result );
+			if (boost::conversion::try_lexical_convert(*token, result))
+			{
+				++token;
+				return true;
+			}
+
+			return false;
 		}
 
 	public:
-		static Order parse_order(const std::string &order_str)
+		static Pricer::ErrorCode parse_order(const std::string &order_str, Order &order)
 		{
+			if (order_str.empty())
+				return ErrorCode::PARSE_FAILED;
 			boost::char_separator<char> sep{ " " };
 			tokenizer tok{ order_str, sep };
 			auto it = tok.begin();
 
-			Order order;
+			if (!try_parse_token(it, order.milliseconds))
+				return ErrorCode::PARSE_FAILED;
 
-			order.milliseconds = boost::lexical_cast<decltype(order.milliseconds)>(*it);
-			std::advance(it, 1);
-
-			const char order_type = boost::lexical_cast<char>(*it);
+			char order_type;
+			if (!try_parse_token(it, order_type))
+				return ErrorCode::PARSE_FAILED;
 			order.type = char_to_order.at(order_type);
 
-			std::advance(it, 1);
 
-			order.id = boost::lexical_cast<decltype(order.id)>(*it);
-			std::advance(it, 1);
+			if (!try_parse_token(it, order.id))
+				return ErrorCode::PARSE_FAILED;
 
 			switch (order.type)
 			{
 			case ORDER_TYPE::ADD:
 			{
-				const char add_order_type_c = boost::lexical_cast<char>(*it);
-				std::advance(it, 1);
+				AddOrder add_order;
 
-				const auto add_order_type = char_to_add_order.at(add_order_type_c);
-				const double limit_price = boost::lexical_cast<double>(*it);
+				char add_order_type_c;
+				if (!try_parse_token(it, add_order_type_c))
+					return ErrorCode::PARSE_FAILED;
 
-				order._order = AddOrder
-				{
-					add_order_type,
-					limit_price
-				};
-				std::advance(it, 1);
-				order.size = boost::lexical_cast<decltype(order.size)>(*it);
+				add_order.order_type = char_to_add_order.at(add_order_type_c);
+
+				if (!try_parse_token(it, add_order.limit_price))
+					return ErrorCode::PARSE_FAILED;
+
+				order._order = add_order;
+
+				if (!try_parse_token(it, order.size))
+					return ErrorCode::PARSE_FAILED;
+
 				break;
 			}
 			case ORDER_TYPE::REDUCE:
-				order.size = boost::lexical_cast<decltype(order.size)>(*it);
+			{
+				if (!try_parse_token(it, order.size))
+					return ErrorCode::PARSE_FAILED;
 				order._order = ReduceOrder{};
 				break;
 			}
-			return order;
+
+			}
+
+			return ErrorCode::NONE;
 		}
 	};
 

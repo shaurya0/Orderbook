@@ -11,33 +11,30 @@
 
 using namespace Pricer;
 
-class cancel_exception : public std::exception
-{
-public:
-	virtual char const * what() const { return "received cancel signal"; }
-};
-
 static std::atomic<bool> cancelled = false;
 
-void run_pricing_engine(long int target_size)
+void run_pricing_engine(uint32_t target_size)
 {
 	std::string strbuf;
 	strbuf.reserve(128);
 	PricingEngine pricing_engine(target_size);
 	pricing_engine.init();
 
-	while (!cancelled)
+	while (!cancelled && std::getline(std::cin, strbuf))
 	{
-		std::getline(std::cin, strbuf);
-		const Order order = OrderParser::parse_order(strbuf);
-		pricing_engine.process(order);
+		Order order;
+		ErrorCode ec = OrderParser::parse_order(strbuf, order);
+
+		if( ec == ErrorCode::NONE )
+			pricing_engine.process(order);
+		else
+			print_error_code( ec );
 	}
 }
 
 static void signal_handler(int sig)
 {
 	cancelled = true;
-	throw cancel_exception();
 }
 
 
@@ -59,20 +56,16 @@ int main(int argc, char *argv[])
 			throw std::exception("negative target");
 		}
 
-		run_pricing_engine(target_size);
+		run_pricing_engine(static_cast<uint32_t>(target_size));
 	}
-    catch( const cancel_exception& )
-    {
-        std::cout << "received cancel signal, exiting gracefully";
-    }
 	catch (const std::exception &ex)
 	{
 		std::cout << ex.what();
 	}
 	catch (...)
 	{
-
 	}
+	std::cout << "exiting" << std::endl;
 	getchar();
 	return 0;
 }

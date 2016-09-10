@@ -26,19 +26,22 @@ namespace Pricer
     private:
         struct BuyState
         {
+			const uint32_t target_size;
             uint64_t last_expense;
             uint64_t most_expensive_share;
+			bool emit_messages;
         };
 
         struct SellState
         {
+			const uint32_t target_size;
             uint64_t last_income;
             uint64_t cheapest_share;
+			bool emit_messages;
         };
 
         BuyState _buy_state;
         SellState _sell_state;
-        long int _target_size;
 
         BidOrderBook _bid_order_book;
         AskOrderBook _ask_order_book;
@@ -70,6 +73,7 @@ namespace Pricer
             const std::string &id = order.id;
             const auto& bid_ids = _bid_order_book.get_order_ids();
             const auto& ask_ids = _ask_order_book.get_order_ids();
+
             Pricer::ErrorCode ec = ErrorCode::NONE;
             if( id_in_order_book( bid_ids, id ) )
             {
@@ -88,8 +92,8 @@ namespace Pricer
         }
 
 
-        template<typename OB>
-        std::pair<uint64_t, uint64_t> order_book_target(const OB& order_book) const
+        template<typename OB, typename OBState>
+        static std::pair<uint64_t, uint64_t> order_book_target(const OB& order_book, OBState &ob_state) noexcept
         {
             uint64_t result = 0;
             uint64_t num_shares = 0;
@@ -99,9 +103,9 @@ namespace Pricer
                 for( const auto &levels: levels.second)
                 {
                     uint64_t shares = 0;
-                    if( levels.second + num_shares > _target_size )
+                    if( levels.second + num_shares > ob_state.target_size )
                     {
-                        shares = _target_size - num_shares;
+                        shares = ob_state.target_size - num_shares;
                     }
                     else
                     {
@@ -115,10 +119,9 @@ namespace Pricer
         }
 
     public:
-        PricingEngine(long int target_size) :
-          _target_size(target_size)
-        , _buy_state( {} )
-        , _sell_state( {} ) {}
+        PricingEngine(uint32_t target_size) :
+          _buy_state( {target_size, 0, 0, false} )
+        , _sell_state( {target_size, 0 , 0, false} ) {}
 
         void init(){}
 
@@ -132,21 +135,38 @@ namespace Pricer
 
         void compute_targets(const Order &order)
         {
-            auto income_shares = order_book_target( _ask_order_book.get_orders() );
-            if( income_shares.second == _target_size )
+            auto income_shares = order_book_target( _ask_order_book.get_orders(), _sell_state );
+            if( income_shares.second == _sell_state.target_size && income_shares.first != _sell_state.last_income)
             {
+				_sell_state.emit_messages = true;
                 double income = Utils::convert_price( income_shares.first );
                 std::cout << order.milliseconds << " B " << income << std::endl;
-                _last_income = income_shares.first;
             }
+			else
+			{
+				if (_sell_state.emit_messages && income_shares.first != _sell_state.last_income)
+				{
+					std::cout << order.milliseconds << " B NA" << std::endl;
+				}
+			}
+			_sell_state.last_income = income_shares.first;
 
-            auto expenses_shares = order_book_target( _bid_order_book.get_orders() );
-            if( expenses_shares.second == _target_size )
+            auto expenses_shares = order_book_target( _bid_order_book.get_orders(), _buy_state );
+            if( expenses_shares.second == _buy_state.target_size && expenses_shares.first != _buy_state.last_expense)
             {
+				_buy_state.emit_messages = true;
                 double expenses = Utils::convert_price( expenses_shares.first );
                 std::cout << order.milliseconds << " S " << expenses << std::endl;
-                _last_expense = expenses_shares.first;
             }
+			else
+			{
+				if (_buy_state.emit_messages && expenses_shares.first != _buy_state.last_expense)
+				{
+					std::cout << order.milliseconds << " S NA" << std::endl;
+				}
+			}
+            _buy_state.last_expense = expenses_shares.first;
+
         }
 
         void process(const Pricer::Order &order)
