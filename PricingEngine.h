@@ -7,6 +7,7 @@
 #include <signal.h>
 #include <atomic>
 #include <utility>
+#include <string>
 #include <unordered_map>
 #include <numeric>
 #include <deque>
@@ -23,15 +24,27 @@ namespace Pricer
         using AskOrderBook = OrderBook<std::less<uint64_t>>;
 
     private:
+        struct BuyState
+        {
+            uint64_t last_expense;
+            uint64_t most_expensive_share;
+        };
+
+        struct SellState
+        {
+            uint64_t last_income;
+            uint64_t cheapest_share;
+        };
+
+        BuyState _buy_state;
+        SellState _sell_state;
         long int _target_size;
-        uint64_t _last_income;
-        uint64_t _last_expense;
 
         BidOrderBook _bid_order_book;
         AskOrderBook _ask_order_book;
 
         template<typename T>
-        bool id_in_order_book(const T& order_ids, char id) const noexcept
+        bool id_in_order_book(const T& order_ids, const std::string &id) const noexcept
         {
             return order_ids.end() != order_ids.find(id);
         }
@@ -54,24 +67,24 @@ namespace Pricer
 
         Pricer::ErrorCode process_reduce_order(const Pricer::Order &order)
         {
-            char id = order.id;
+            const std::string &id = order.id;
             const auto& bid_ids = _bid_order_book.get_order_ids();
             const auto& ask_ids = _ask_order_book.get_order_ids();
-            Pricer::ErrorCode result = ErrorCode::NONE;
+            Pricer::ErrorCode ec = ErrorCode::NONE;
             if( id_in_order_book( bid_ids, id ) )
             {
-                result = _bid_order_book.reduce_order( order );
+                ec = _bid_order_book.reduce_order( order );
             }
             else if( id_in_order_book( ask_ids, id ) )
             {
-                result = _ask_order_book.reduce_order( order );
+                ec = _ask_order_book.reduce_order( order );
             }
             else
             {
-                result = ErrorCode::REDUCE_FAILED;
+                ec = ErrorCode::REDUCE_FAILED;
             }
 
-            return result;
+            return ec;
         }
 
 
@@ -104,8 +117,8 @@ namespace Pricer
     public:
         PricingEngine(long int target_size) :
           _target_size(target_size)
-        , _last_expense(std::numeric_limits<uint64_t>::max())
-        , _last_income(std::numeric_limits<uint64_t>::max()) {}
+        , _buy_state( {} )
+        , _sell_state( {} ) {}
 
         void init(){}
 

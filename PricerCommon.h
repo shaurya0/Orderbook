@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <iostream>
+
 namespace Pricer
 {
     class Utils
@@ -30,15 +31,15 @@ namespace Pricer
         switch( ec )
         {
         case ErrorCode::PARSE_FAILED:
-            std::cout << "failed to parse order" << std::endl;
+            std::cerr << "failed to parse order" << std::endl;
             break;
 
         case ErrorCode::ADD_FAILED:
-            std::cout << "failed to add order" << std::endl;
+            std::cerr << "failed to add order" << std::endl;
             break;
 
         case ErrorCode::REDUCE_FAILED:
-            std::cout << "failed to reduce order" << std::endl;
+            std::cerr << "failed to reduce order" << std::endl;
             break;
         }
     }

@@ -4,27 +4,12 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/tokenizer.hpp>
 #include <boost/variant.hpp>
+#include <string>
 
 namespace Pricer
 {
 	enum class ADD_ORDER_TYPE{ BID, ASK };
 	enum class ORDER_TYPE{ ADD, REDUCE };
-    struct AddOrder_
-    {
-        uint32_t milliseconds;
-        char id;
-        uint32_t size;
-        ADD_ORDER_TYPE order_type;
-        double limit_price;
-    };
-
-    struct ReduceOrder_
-    {
-        uint32_t milliseconds;
-        char id;
-        uint32_t size;
-        double limit_price;
-    };
 
 	struct AddOrder
 	{
@@ -41,11 +26,12 @@ namespace Pricer
 	{
 		ORDER_TYPE type;
 		uint32_t milliseconds;
-		char id;
+		std::string id;
 		uint32_t size;
 
 		boost::variant<AddOrder, ReduceOrder> _order;
 	};
+
 
 
 	class OrderParser
@@ -53,6 +39,13 @@ namespace Pricer
 	private:
 		using tokenizer = boost::tokenizer<boost::char_separator<char>>;
 		using token_iterator = tokenizer::iterator;
+
+		template<typename Source, typename Target>
+		bool try_lexical_cast( const Source& source, Target& result )
+		{
+			return conversion::try_lexical_convert( source, result );
+		}
+
 	public:
 		static Order parse_order(const std::string &order_str)
 		{

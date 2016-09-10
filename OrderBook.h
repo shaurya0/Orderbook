@@ -19,11 +19,11 @@ namespace Pricer
         using quantity_t = uint32_t;
         using price_t = uint64_t;
 
-        using price_levels_t = std::unordered_map<char, quantity_t>;
+        using price_levels_t = std::unordered_map<std::string, quantity_t>;
         using order_book_t = std::map<price_t, price_levels_t, CMP_FUNC>;
 
         typedef typename order_book_t::iterator order_book_it_t;
-        using order_book_id_t = std::unordered_map<char, order_book_it_t>;
+        using order_book_id_t = std::unordered_map<std::string, order_book_it_t>;
 
     private:
         uint64_t _total_orders;
