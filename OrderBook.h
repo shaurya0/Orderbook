@@ -18,7 +18,7 @@ namespace Pricer
     {
     public:
         using quantity_t = uint32_t;
-        using price_t = uint64_t;
+        using price_t = uint32_t;
 
         using price_levels_t = std::unordered_map<std::string, quantity_t>;
         using order_book_t = std::map<price_t, price_levels_t, CMP_FUNC>;
@@ -27,7 +27,7 @@ namespace Pricer
         using order_book_id_t = std::unordered_map<std::string, order_book_it_t>;
 
     private:
-        uint64_t _total_orders;
+        uint32_t _total_orders;
         order_book_t _orders;
         order_book_id_t _order_ids;
 
@@ -49,9 +49,9 @@ namespace Pricer
                 return ErrorCode::ADD_FAILED;
 
             const auto &add_order_info = boost::get<Pricer::AddOrder>(order._order);
-            const price_t price_as_int = Pricer::Utils::convert_price( add_order_info.limit_price );
+            const price_t price = add_order_info.limit_price;
 
-            const auto price_level_found_it = _orders.find(price_as_int);
+            const auto price_level_found_it = _orders.find(price);
             if( _orders.end() != price_level_found_it )
             {
                 price_levels_t &levels = price_level_found_it->second;
@@ -60,7 +60,7 @@ namespace Pricer
             }
             else
             {
-                const auto key_value = std::make_pair(price_as_int, price_levels_t{ {order.id, order.size} });
+                const auto key_value = std::make_pair(price, price_levels_t{ {order.id, order.size} });
                 const auto insert_result = _orders.insert( key_value );
                 _order_ids[order.id] = insert_result.first;
             }
@@ -70,7 +70,7 @@ namespace Pricer
             return ErrorCode::NONE;
         }
 
-        Pricer::ErrorCode reduce_order(const Pricer::Order &order) noexcept
+        Pricer::ErrorCode reduce_order(Pricer::Order &order) noexcept
         {
             auto found_it = _order_ids.find(order.id);
             const bool found = found_it != _order_ids.end();
@@ -80,9 +80,13 @@ namespace Pricer
             const auto order_it = found_it->second;
             price_levels_t &levels = order_it->second;
             uint32_t previous_size = levels[order.id];
+			auto &reduce_order = boost::get<ReduceOrder>(order._order);
+			reduce_order.price = order_it->first;
             if (order.size >= previous_size)
             {
                 levels.erase(order.id);
+				if (levels.empty())
+					_orders.erase(order_it);
             }
             else
             {
@@ -101,7 +105,7 @@ namespace Pricer
 
         const order_book_t &get_orders() const noexcept { return _orders; }
         const order_book_id_t &get_order_ids() const noexcept { return _order_ids; }
-        uint64_t get_total_orders() const noexcept{ return _total_orders; }
+        uint32_t get_total_orders() const noexcept{ return _total_orders; }
     };
 
 }

@@ -48,7 +48,7 @@ namespace Pricer
             return ec;
         }
 
-        Pricer::ErrorCode process_reduce_order(const Pricer::Order &order)
+        Pricer::ErrorCode process_reduce_order(Pricer::Order &order)
         {
             const std::string &id = order.id;
             const auto& bid_ids = _bid_order_book.get_order_ids();
@@ -72,7 +72,7 @@ namespace Pricer
         }
 
     public:
-        void process(const Pricer::Order &order)
+        void process(Pricer::Order &order)
         {
             Pricer::ErrorCode ec = ErrorCode::NONE;
             switch( order.type )

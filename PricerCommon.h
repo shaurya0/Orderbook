@@ -7,14 +7,14 @@ namespace Pricer
     class Utils
     {
     public:
-        static uint64_t convert_price( double price )
+        static uint32_t convert_price( float price )
         {
-            return static_cast<uint64_t>( price*100 );
+            return static_cast<uint32_t>( price*100 );
         }
 
-        static double convert_price( uint64_t price )
+        static float convert_price( uint32_t price )
         {
-            return static_cast<double>( price )/100.0;
+            return static_cast<float>( price )/100.0f;
         }
     };
 

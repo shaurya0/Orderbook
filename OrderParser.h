@@ -15,16 +15,19 @@ namespace Pricer
 	struct AddOrder
 	{
 		ADD_ORDER_TYPE order_type;
-		double limit_price;
+		uint32_t limit_price;
 	};
 
-	struct ReduceOrder{};
+	struct ReduceOrder
+	{
+		uint32_t price;
+	};
 
-	static std::map<char, ADD_ORDER_TYPE> char_to_add_order = { { 'B', ADD_ORDER_TYPE::BID }, { 'S', ADD_ORDER_TYPE::ASK } };
-	static std::map<char, ORDER_TYPE> char_to_order = { { 'A', ORDER_TYPE::ADD }, { 'R', ORDER_TYPE::REDUCE } };
 
 	struct Order
 	{
+		static std::map<char, ADD_ORDER_TYPE> char_to_add_order;
+		static std::map<char, ORDER_TYPE> char_to_order;
 		ORDER_TYPE type;
 		uint32_t milliseconds;
 		std::string id;
@@ -32,6 +35,9 @@ namespace Pricer
 
 		boost::variant<AddOrder, ReduceOrder> _order;
 	};
+
+	std::map<char, ADD_ORDER_TYPE> Order::char_to_add_order = { { 'B', ADD_ORDER_TYPE::BID }, { 'S', ADD_ORDER_TYPE::ASK } };
+	std::map<char, ORDER_TYPE> Order::char_to_order = { { 'A', ORDER_TYPE::ADD }, { 'R', ORDER_TYPE::REDUCE } };
 
 	class OrderParser
 	{
@@ -66,7 +72,11 @@ namespace Pricer
 			char order_type;
 			if (!try_parse_token(it, order_type))
 				return ErrorCode::PARSE_FAILED;
-			order.type = char_to_order.at(order_type);
+
+			if( Order::char_to_order.end() == Order::char_to_order.find(order_type) )
+				return ErrorCode::PARSE_FAILED;
+
+			order.type = Order::char_to_order.at(order_type);
 
 
 			if (!try_parse_token(it, order.id))
@@ -82,10 +92,15 @@ namespace Pricer
 				if (!try_parse_token(it, add_order_type_c))
 					return ErrorCode::PARSE_FAILED;
 
-				add_order.order_type = char_to_add_order.at(add_order_type_c);
-
-				if (!try_parse_token(it, add_order.limit_price))
+				if( Order::char_to_add_order.end() == Order::char_to_add_order.find(add_order_type_c) )
 					return ErrorCode::PARSE_FAILED;
+
+				add_order.order_type = Order::char_to_add_order.at(add_order_type_c);
+
+				float limit_price;
+				if (!try_parse_token(it, limit_price))
+					return ErrorCode::PARSE_FAILED;
+				add_order.limit_price = Utils::convert_price(limit_price);
 
 				order._order = add_order;
 
