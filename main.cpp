@@ -18,7 +18,7 @@ void run_pricing_engine(uint32_t target_size)
 	std::string strbuf;
 	strbuf.reserve(128);
 	PricingEngine pricing_engine(target_size);
-	pricing_engine.init();
+	pricing_engine.initialize();
 
 	while (!cancelled && std::getline(std::cin, strbuf))
 	{
@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
 	}
 	catch (const std::exception &ex)
 	{
-		std::cout << ex.what();
+		std::cout << ex.what() << std::endl;
 	}
 	catch (...)
 	{

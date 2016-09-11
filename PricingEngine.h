@@ -16,7 +16,6 @@
 
 namespace Pricer
 {
-
     class PricingEngine
     {
     public:
@@ -118,12 +117,57 @@ namespace Pricer
             return std::make_pair( result, num_shares );
         }
 
+        void compute_income(const Order &order)
+        {
+            auto income_shares = order_book_target( _ask_order_book.get_orders(), _sell_state );
+            if( income_shares.second == _sell_state.target_size && income_shares.first != _sell_state.last_income)
+            {
+                _sell_state.emit_messages = true;
+                double income = Utils::convert_price( income_shares.first );
+                std::cout << order.milliseconds << " B " << income << std::endl;
+            }
+            else
+            {
+                if (_sell_state.emit_messages && income_shares.first != _sell_state.last_income)
+                {
+                    std::cout << order.milliseconds << " B NA" << std::endl;
+                }
+            }
+            _sell_state.last_income = income_shares.first;
+        }
+
+        void compute_expenses(const Order &order)
+        {
+            auto expenses_shares = order_book_target( _bid_order_book.get_orders(), _buy_state );
+            if( expenses_shares.second == _buy_state.target_size && expenses_shares.first != _buy_state.last_expense)
+            {
+                _buy_state.emit_messages = true;
+                double expenses = Utils::convert_price( expenses_shares.first );
+                std::cout << order.milliseconds << " S " << expenses << std::endl;
+            }
+            else
+            {
+                if (_buy_state.emit_messages && expenses_shares.first != _buy_state.last_expense)
+                {
+                    std::cout << order.milliseconds << " S NA" << std::endl;
+                }
+            }
+            _buy_state.last_expense = expenses_shares.first;
+        }
+
+
     public:
         PricingEngine(uint32_t target_size) :
           _buy_state( {target_size, 0, 0, false} )
-        , _sell_state( {target_size, 0 , 0, false} ) {}
+        , _sell_state( {target_size, 0 , 0, false} )
+        {
 
-        void init(){}
+        }
+
+        void initialize()
+        {
+
+        }
 
         // optimization oppoprtunities:
         // if last order is a sell then there is no need to compute expenses
@@ -133,41 +177,6 @@ namespace Pricer
 
         //
 
-        void compute_targets(const Order &order)
-        {
-            auto income_shares = order_book_target( _ask_order_book.get_orders(), _sell_state );
-            if( income_shares.second == _sell_state.target_size && income_shares.first != _sell_state.last_income)
-            {
-				_sell_state.emit_messages = true;
-                double income = Utils::convert_price( income_shares.first );
-                std::cout << order.milliseconds << " B " << income << std::endl;
-            }
-			else
-			{
-				if (_sell_state.emit_messages && income_shares.first != _sell_state.last_income)
-				{
-					std::cout << order.milliseconds << " B NA" << std::endl;
-				}
-			}
-			_sell_state.last_income = income_shares.first;
-
-            auto expenses_shares = order_book_target( _bid_order_book.get_orders(), _buy_state );
-            if( expenses_shares.second == _buy_state.target_size && expenses_shares.first != _buy_state.last_expense)
-            {
-				_buy_state.emit_messages = true;
-                double expenses = Utils::convert_price( expenses_shares.first );
-                std::cout << order.milliseconds << " S " << expenses << std::endl;
-            }
-			else
-			{
-				if (_buy_state.emit_messages && expenses_shares.first != _buy_state.last_expense)
-				{
-					std::cout << order.milliseconds << " S NA" << std::endl;
-				}
-			}
-            _buy_state.last_expense = expenses_shares.first;
-
-        }
 
         void process(const Pricer::Order &order)
         {
@@ -184,8 +193,6 @@ namespace Pricer
 
             if( ec != ErrorCode::NONE )
                 print_error_code( ec );
-            else
-                compute_targets(order);
         }
     };
 } // Pricer

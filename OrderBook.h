@@ -9,6 +9,7 @@
 #include <deque>
 #include <list>
 #include <map>
+#include <functional>
 
 namespace Pricer
 {
@@ -30,6 +31,14 @@ namespace Pricer
         order_book_t _orders;
         order_book_id_t _order_ids;
 
+		std::list<std::function<void(const Pricer::Order&)>> _observers;
+		void notify_observers(const Pricer::Order &order)
+		{
+			for (const auto &observer : _observers)
+			{
+				observer(order);
+			}
+		}
     public:
         Pricer::ErrorCode add_order(const Pricer::Order &order) noexcept
         {
@@ -56,6 +65,7 @@ namespace Pricer
             }
             _total_orders += order.size;
 
+			notify_observers(order);
             return ErrorCode::NONE;
         }
 
@@ -77,8 +87,15 @@ namespace Pricer
             {
                 levels[order.id] = previous_size - order.size;
             }
+			notify_observers(order);
             return ErrorCode::NONE;
         }
+
+		template<typename FUNC>
+		void register_observer(FUNC &&callback)
+		{
+			_observers.push_back(std::forward<FUNC>(callback));
+		}
 
         const order_book_t &get_orders() const noexcept { return _orders; }
         const order_book_id_t &get_order_ids() const noexcept { return _order_ids; }
