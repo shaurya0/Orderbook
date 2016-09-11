@@ -68,10 +68,62 @@ namespace Pricer
 		}
 
         enum class result_type {INCOME, EXPENSES};
+
+		bool compute_new_result(uint32_t total_orders, const Order &order, result_type rt, PricingState &pricing_state, char msg)
+		{
+			bool compute = true;
+			if (total_orders < pricing_state.target_size)
+			{
+				const bool state_changed = pricing_state.previous_state == OrderState::FULFILLED;
+				if (state_changed)
+				{
+					std::cout << order.milliseconds << " " << msg << " NA" << std::endl;
+				}
+				pricing_state.previous_state = OrderState::NOT_FULFILLED;
+				return false;
+			}
+
+
+			if (pricing_state.previous_state == OrderState::FULFILLED)
+			{
+				if (order.type == ORDER_TYPE::ADD)
+				{
+					const auto &add_order = boost::get<AddOrder>(order._order);
+					if (rt == result_type::INCOME)
+					{
+						if (add_order.limit_price < pricing_state.worst_price)
+							compute = false;
+					}
+					else
+					{
+						if (add_order.limit_price > pricing_state.worst_price)
+							compute = false;
+					}
+				}
+				else
+				{
+					const auto &reduce_order = boost::get<ReduceOrder>(order._order);
+					if (rt == result_type::INCOME)
+					{
+						if (reduce_order.price < pricing_state.worst_price)
+							compute = false;
+					}
+					else
+					{
+						if (reduce_order.price > pricing_state.worst_price)
+							compute = false;
+					}
+				}
+			}
+
+
+			return compute;
+		}
+
+
         void compute_pricer_result( const Order &order, result_type rt )
         {
             PricingState *pricing_state = nullptr;
-			std::pair<uint32_t, uint32_t> result_shares = std::make_pair(0, 0);
             char msg;
             uint32_t total_orders = 0;
             if (rt == result_type::INCOME)
@@ -87,18 +139,8 @@ namespace Pricer
                 total_orders = _order_book_manager.get_ask_order_book().get_total_orders();
             }
 
-			bool compute = true;
-			if (total_orders < pricing_state->target_size)
-			{
-				const bool state_changed = pricing_state->previous_state == OrderState::FULFILLED;
-				if (state_changed)
-				{
-					std::cout << order.milliseconds << " " << msg << " NA" << std::endl;
-				}
-				pricing_state->previous_state = OrderState::NOT_FULFILLED;
-				compute = false;
-			}
-
+			std::pair<uint32_t, uint32_t> result_shares = std::make_pair(pricing_state->last_result, 0);
+			bool compute = compute_new_result(total_orders, order, rt, *pricing_state, msg);
 
 			if (compute)
 			{
