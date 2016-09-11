@@ -22,30 +22,21 @@ namespace Pricer
 	{
 	private:
 		enum class OrderState {FULFILLED, NOT_FULFILLED};
-		struct BuyState
+		struct PricingState
 		{
 			const uint32_t target_size;
-			uint32_t last_expense;
-			uint32_t worst_price;
-            uint32_t num_orders;
-			OrderState previous_state;
-		};
-
-		struct SellState
-		{
-			const uint32_t target_size;
-			uint32_t last_income;
+			uint32_t last_result;
 			uint32_t worst_price;
             uint32_t num_orders;
 			OrderState previous_state;
 		};
 
 		const OrderBookController &_order_book_controller;
-		BuyState _buy_state;
-		SellState _sell_state;
+		PricingState _buy_state;
+		PricingState _sell_state;
 
-		template<typename OB, typename OBState>
-		static std::pair<uint32_t, uint32_t> order_book_target(const OB& order_book, OBState &ob_state) noexcept
+		template<typename OB>
+		static std::pair<uint32_t, uint32_t> order_book_target(const OB& order_book, PricingState &pricing_state) noexcept
 		{
 			uint32_t result = 0;
 			uint32_t num_shares = 0;
@@ -55,9 +46,9 @@ namespace Pricer
 				for (const auto &levels : levels.second)
 				{
 					uint32_t shares = 0;
-					if (levels.second + num_shares > ob_state.target_size)
+					if (levels.second + num_shares > pricing_state.target_size)
 					{
-						shares = ob_state.target_size - num_shares;
+						shares = pricing_state.target_size - num_shares;
 					}
 					else
 					{
@@ -67,62 +58,77 @@ namespace Pricer
 					num_shares += shares;
 
 					if (shares > 0)
-						ob_state.worst_price = price;
+						pricing_state.worst_price = price;
 
-					if(num_shares == ob_state.target_size)
+					if(num_shares == pricing_state.target_size)
 						return std::make_pair(result, num_shares);
 				}
 			}
 			return std::make_pair(result, num_shares);
 		}
 
-
-		void compute_expenses(const Order &order)
-		{
-            auto expenses_shares = order_book_target(_order_book_controller.get_ask_order_book(), _buy_state);
-            const bool fulfilled_order = expenses_shares.second == _buy_state.target_size;
-            const bool result_changed = expenses_shares.first != _buy_state.last_expense;
-            if ( fulfilled_order && result_changed)
+		// TODO: refactor 
+        enum class result_type {INCOME, EXPENSES};
+        void compute_pricer_result( const Order &order, result_type rt )
+        {
+            PricingState *pricing_state = nullptr;
+			std::pair<uint32_t, uint32_t> result_shares = std::make_pair(0, 0);
+            char msg;
+            uint32_t total_orders = 0;
+            if (rt == result_type::INCOME)
             {
-                float expenses = Utils::convert_price(expenses_shares.first);
-                std::cout << order.milliseconds << " B " <<  expenses << std::endl;
-                _buy_state.previous_state = OrderState::FULFILLED;
+                msg = 'S';
+				pricing_state = &_sell_state;
+                total_orders = _order_book_controller.get_bid_order_book().get_total_orders();
             }
             else
             {
-                const bool state_changed = _buy_state.previous_state == OrderState::FULFILLED;
-                if (state_changed)
-                {
-                    std::cout << order.milliseconds << " B NA" << std::endl;
-                }
-                _buy_state.previous_state = OrderState::NOT_FULFILLED;
+                msg = 'B';
+				pricing_state = &_buy_state;
+                total_orders = _order_book_controller.get_ask_order_book().get_total_orders();
             }
-            _buy_state.last_expense = expenses_shares.first;
-            _buy_state.num_orders = _order_book_controller.get_ask_order_book().get_total_orders();
+
+			bool compute = true;
+			if (total_orders < pricing_state->target_size)
+			{
+				const bool state_changed = pricing_state->previous_state == OrderState::FULFILLED;
+				if (state_changed)
+				{
+					std::cout << order.milliseconds << " " << msg << " NA" << std::endl;
+				}
+				pricing_state->previous_state = OrderState::NOT_FULFILLED;
+				compute = false;
+			}
+
+			if (compute)
+			{
+				if( rt == result_type::INCOME )
+					result_shares = order_book_target(_order_book_controller.get_bid_order_book(), *pricing_state);
+				else
+					result_shares = order_book_target(_order_book_controller.get_ask_order_book(), *pricing_state);
+
+				const bool fulfilled_order = result_shares.second == pricing_state->target_size;
+				const bool result_changed = result_shares.first != pricing_state->last_result;
+				if (fulfilled_order && result_changed)
+				{
+					float result = Utils::convert_price(result_shares.first);
+					std::cout << order.milliseconds << " " << msg << " " << std::setprecision(2) << std::fixed << result << std::endl;
+					pricing_state->previous_state = OrderState::FULFILLED;
+				}
+			}
+
+            pricing_state->last_result = result_shares.first;
+            pricing_state->num_orders = total_orders;
+        }
+
+		void compute_expenses(const Order &order)
+		{
+            compute_pricer_result( order, result_type::EXPENSES );
         }
 
         void compute_income(const Order &order)
         {
-			auto income_shares = order_book_target(_order_book_controller.get_bid_order_book(), _sell_state);
-            const bool fulfilled_order = income_shares.second == _sell_state.target_size;
-            const bool result_changed = income_shares.first != _sell_state.last_income;
-			if (fulfilled_order && result_changed)
-			{
-				float income = Utils::convert_price(income_shares.first);
-				std::cout << order.milliseconds << " S " <<  income << std::endl;
-                _sell_state.previous_state = OrderState::FULFILLED;
-            }
-            else
-            {
-                const bool state_changed = _sell_state.previous_state == OrderState::FULFILLED;
-                if (state_changed)
-                {
-                    std::cout << order.milliseconds << " S NA" << std::endl;
-                }
-                _sell_state.previous_state = OrderState::NOT_FULFILLED;
-            }
-            _sell_state.last_income = income_shares.first;
-            _sell_state.num_orders = _order_book_controller.get_bid_order_book().get_total_orders();
+            compute_pricer_result( order, result_type::INCOME );
         }
 
 
