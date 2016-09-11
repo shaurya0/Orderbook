@@ -27,7 +27,6 @@ namespace Pricer
 			const uint32_t target_size;
 			uint32_t last_result;
 			uint32_t worst_price;
-            uint32_t num_orders;
 			OrderState previous_state;
 		};
 
@@ -118,7 +117,6 @@ namespace Pricer
 			}
 
             pricing_state->last_result = result_shares.first;
-            pricing_state->num_orders = total_orders;
         }
 
 		void compute_expenses(const Order &order)
@@ -135,8 +133,8 @@ namespace Pricer
     public:
 		PricingEngine(uint32_t target_size, OrderBookManager &manager)
 			:
-			_buy_state({ target_size, 0, std::numeric_limits<uint32_t>::max(), 0, OrderState::NOT_FULFILLED })
-			, _sell_state({ target_size, 0, std::numeric_limits<uint32_t>::max(), 0, OrderState::NOT_FULFILLED })
+			_buy_state({ target_size, 0, 0, OrderState::NOT_FULFILLED })
+			, _sell_state({ target_size, 0, 0, OrderState::NOT_FULFILLED })
 			, _order_book_manager(manager)
 		{
 			manager.get_ask_order_book().register_observer([&](const Pricer::Order& order) { compute_expenses(order); });
