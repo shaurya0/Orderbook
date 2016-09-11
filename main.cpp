@@ -17,16 +17,20 @@ void run_pricing_engine(uint32_t target_size)
 {
 	std::string strbuf;
 	strbuf.reserve(128);
-	PricingEngine pricing_engine(target_size);
+	OrderBookController controller;
+	PricingEngine pricing_engine(target_size, controller);
 	pricing_engine.initialize();
 
 	while (!cancelled && std::getline(std::cin, strbuf))
 	{
+		if (strbuf.empty())
+			continue;
+
 		Order order;
 		ErrorCode ec = OrderParser::parse_order(strbuf, order);
 
 		if( ec == ErrorCode::NONE )
-			pricing_engine.process(order);
+			controller.process( order );
 		else
 			print_error_code( ec );
 	}
