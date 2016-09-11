@@ -41,6 +41,8 @@ namespace Pricer
         case ErrorCode::REDUCE_FAILED:
             std::cerr << "failed to reduce order" << std::endl;
             break;
+		default:
+			break;
         }
     }
 }

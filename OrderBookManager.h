@@ -32,7 +32,7 @@ namespace Pricer
             return order_ids.end() != order_ids.find(id);
         }
 
-        Pricer::ErrorCode process_add_order(const Pricer::Order& order)
+        void process_add_order(const Pricer::Order& order)
         {
             const auto& add_order = boost::get<AddOrder>(order._order);
             Pricer::ErrorCode ec = ErrorCode::NONE;
@@ -45,10 +45,10 @@ namespace Pricer
                 ec = _bid_order_book.add_order(order);
                 break;
             }
-            return ec;
+			print_error_code(ec);
         }
 
-        Pricer::ErrorCode process_reduce_order(Pricer::Order &order)
+        void process_reduce_order(Pricer::Order &order)
         {
             const std::string &id = order.id;
             const auto& bid_ids = _bid_order_book.get_order_ids();
@@ -68,25 +68,21 @@ namespace Pricer
                 ec = ErrorCode::REDUCE_FAILED;
             }
 
-            return ec;
+			print_error_code(ec);
         }
 
     public:
         void process(Pricer::Order &order)
         {
-            Pricer::ErrorCode ec = ErrorCode::NONE;
             switch( order.type )
             {
             case Pricer::ORDER_TYPE::ADD:
-                ec = process_add_order(order);
+                process_add_order(order);
                 break;
             case Pricer::ORDER_TYPE::REDUCE:
-                ec = process_reduce_order(order);
+                process_reduce_order(order);
                 break;
             }
-
-            if( ec != ErrorCode::NONE )
-                print_error_code( ec );
         }
 
         const BidOrderBook &get_bid_order_book() const noexcept { return _bid_order_book; }
