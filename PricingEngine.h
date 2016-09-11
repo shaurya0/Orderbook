@@ -71,51 +71,44 @@ namespace Pricer
 
 		bool compute_new_result(uint32_t total_orders, const Order &order, result_type rt, PricingState &pricing_state, char msg)
 		{
+            if (total_orders < pricing_state.target_size)
+            {
+                const bool state_changed = pricing_state.previous_state == OrderState::FULFILLED;
+                if (state_changed)
+                {
+                    std::cout << order.milliseconds << " " << msg << " NA" << std::endl;
+                }
+                pricing_state.previous_state = OrderState::NOT_FULFILLED;
+                return false;
+            }
+
+
 			bool compute = true;
-			if (total_orders < pricing_state.target_size)
-			{
-				const bool state_changed = pricing_state.previous_state == OrderState::FULFILLED;
-				if (state_changed)
-				{
-					std::cout << order.milliseconds << " " << msg << " NA" << std::endl;
-				}
-				pricing_state.previous_state = OrderState::NOT_FULFILLED;
-				return false;
-			}
-
-
 			if (pricing_state.previous_state == OrderState::FULFILLED)
 			{
+                uint32_t price = 0;
 				if (order.type == ORDER_TYPE::ADD)
 				{
 					const auto &add_order = boost::get<AddOrder>(order._order);
-					if (rt == result_type::INCOME)
-					{
-						if (add_order.limit_price < pricing_state.worst_price)
-							compute = false;
-					}
-					else
-					{
-						if (add_order.limit_price > pricing_state.worst_price)
-							compute = false;
-					}
+                    price = add_order.limit_price;
 				}
 				else
 				{
 					const auto &reduce_order = boost::get<ReduceOrder>(order._order);
-					if (rt == result_type::INCOME)
-					{
-						if (reduce_order.price < pricing_state.worst_price)
-							compute = false;
-					}
-					else
-					{
-						if (reduce_order.price > pricing_state.worst_price)
-							compute = false;
-					}
+                    price = reduce_order.price;
+                }
+
+				if (rt == result_type::INCOME)
+				{
+					if (price < pricing_state.worst_price)
+						compute = false;
+				}
+				else
+				{
+					if (price > pricing_state.worst_price)
+						compute = false;
 				}
 			}
-
 
 			return compute;
 		}
