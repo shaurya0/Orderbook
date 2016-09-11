@@ -16,7 +16,7 @@
 
 namespace Pricer
 {
-    class OrderBookController
+    class OrderBookManager
     {
     public:
         using BidOrderBook = OrderBook<std::greater<uint64_t>>;

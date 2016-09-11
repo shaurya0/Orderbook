@@ -2,7 +2,7 @@
 #include "PricerCommon.h"
 #include "OrderParser.h"
 #include "OrderBook.h"
-#include "OrderBookController.h"
+#include "OrderBookManager.h"
 #include <iomanip>
 #include <iostream>
 #include <stdlib.h>
@@ -31,12 +31,13 @@ namespace Pricer
 			OrderState previous_state;
 		};
 
-		const OrderBookController &_order_book_controller;
+		const OrderBookManager &_order_book_manager;
 		PricingState _buy_state;
 		PricingState _sell_state;
 
+		// TODO: refactor
 		template<typename OB>
-		static std::pair<uint32_t, uint32_t> order_book_target(const OB& order_book, PricingState &pricing_state) noexcept
+		static std::pair<uint32_t, uint32_t> order_book_result(const OB& order_book, PricingState &pricing_state) noexcept
 		{
 			uint32_t result = 0;
 			uint32_t num_shares = 0;
@@ -67,7 +68,6 @@ namespace Pricer
 			return std::make_pair(result, num_shares);
 		}
 
-		// TODO: refactor 
         enum class result_type {INCOME, EXPENSES};
         void compute_pricer_result( const Order &order, result_type rt )
         {
@@ -79,13 +79,13 @@ namespace Pricer
             {
                 msg = 'S';
 				pricing_state = &_sell_state;
-                total_orders = _order_book_controller.get_bid_order_book().get_total_orders();
+                total_orders = _order_book_manager.get_bid_order_book().get_total_orders();
             }
             else
             {
                 msg = 'B';
 				pricing_state = &_buy_state;
-                total_orders = _order_book_controller.get_ask_order_book().get_total_orders();
+                total_orders = _order_book_manager.get_ask_order_book().get_total_orders();
             }
 
 			bool compute = true;
@@ -100,16 +100,16 @@ namespace Pricer
 				compute = false;
 			}
 
+
 			if (compute)
 			{
 				if( rt == result_type::INCOME )
-					result_shares = order_book_target(_order_book_controller.get_bid_order_book(), *pricing_state);
+					result_shares = order_book_result(_order_book_manager.get_bid_order_book(), *pricing_state);
 				else
-					result_shares = order_book_target(_order_book_controller.get_ask_order_book(), *pricing_state);
+					result_shares = order_book_result(_order_book_manager.get_ask_order_book(), *pricing_state);
 
-				const bool fulfilled_order = result_shares.second == pricing_state->target_size;
 				const bool result_changed = result_shares.first != pricing_state->last_result;
-				if (fulfilled_order && result_changed)
+				if ( result_changed)
 				{
 					float result = Utils::convert_price(result_shares.first);
 					std::cout << order.milliseconds << " " << msg << " " << std::setprecision(2) << std::fixed << result << std::endl;
@@ -133,24 +133,14 @@ namespace Pricer
 
 
     public:
-		PricingEngine(uint32_t target_size, OrderBookController &controller)
+		PricingEngine(uint32_t target_size, OrderBookManager &manager)
 			:
 			_buy_state({ target_size, 0, std::numeric_limits<uint32_t>::max(), 0, OrderState::NOT_FULFILLED })
 			, _sell_state({ target_size, 0, std::numeric_limits<uint32_t>::max(), 0, OrderState::NOT_FULFILLED })
-			, _order_book_controller(controller)
+			, _order_book_manager(manager)
 		{
-			controller.get_ask_order_book().register_observer([&](const Pricer::Order& order) { compute_expenses(order); });
-			controller.get_bid_order_book().register_observer([&](const Pricer::Order& order) { compute_income(order); });
+			manager.get_ask_order_book().register_observer([&](const Pricer::Order& order) { compute_expenses(order); });
+			manager.get_bid_order_book().register_observer([&](const Pricer::Order& order) { compute_income(order); });
 		}
-
-		void initialize()
-		{
-
-		}
-
-		// optimization oppoprtunities:
-		// cache the smallest bid in the sell : if a new bid comes in which is smaller and the previous sell was fulfilled then we don't need to recompute
-		// cache the largest ask in the buy : if a new sell comes in which is larger and the previous buy was fulfilled then we don't need to recompute
-
 	};
 } // Pricer

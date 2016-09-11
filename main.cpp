@@ -1,4 +1,5 @@
 #include "PricingEngine.h"
+#include <chrono>
 #include <iostream>
 #include <stdlib.h>
 #include <signal.h>
@@ -17,9 +18,8 @@ void run_pricing_engine(uint32_t target_size)
 {
 	std::string strbuf;
 	strbuf.reserve(128);
-	OrderBookController controller;
-	PricingEngine pricing_engine(target_size, controller);
-	pricing_engine.initialize();
+	OrderBookManager order_book_manager;
+	PricingEngine pricing_engine(target_size, order_book_manager);
 
 	while (!cancelled && std::getline(std::cin, strbuf))
 	{
@@ -30,7 +30,7 @@ void run_pricing_engine(uint32_t target_size)
 		ErrorCode ec = OrderParser::parse_order(strbuf, order);
 
 		if( ec == ErrorCode::NONE )
-			controller.process( order );
+			order_book_manager.process( order );
 		else
 			print_error_code( ec );
 	}
@@ -59,8 +59,11 @@ int main(int argc, char *argv[])
 		{
 			throw std::exception("negative target");
 		}
+		std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
 		run_pricing_engine(static_cast<uint32_t>(target_size));
+		std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+		std::cerr << "elapsed time (ms) = " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << std::endl;
 	}
 	catch (const std::exception &ex)
 	{
@@ -69,7 +72,5 @@ int main(int argc, char *argv[])
 	catch (...)
 	{
 	}
-	std::cout << "exiting" << std::endl;
-	getchar();
 	return 0;
 }

@@ -89,6 +89,7 @@ namespace Pricer
 				if (levels.empty())
 					_orders.erase(order_it);
 
+				_order_ids.erase(order.id);
 				_total_orders -= previous_size;
             }
             else
