@@ -82,15 +82,19 @@ namespace Pricer
             uint32_t previous_size = levels[order.id];
 			auto &reduce_order = boost::get<ReduceOrder>(order._order);
 			reduce_order.price = order_it->first;
+
             if (order.size >= previous_size)
             {
                 levels.erase(order.id);
 				if (levels.empty())
 					_orders.erase(order_it);
+
+				_total_orders -= previous_size;
             }
             else
             {
                 levels[order.id] = previous_size - order.size;
+				_total_orders -= order.size;
             }
 			notify_observers(order);
             return ErrorCode::NONE;
