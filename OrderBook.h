@@ -47,20 +47,23 @@ namespace Pricer
 
             const auto &add_order_info = boost::get<Pricer::AddOrder>(order._order);
             const price_t price = add_order_info.limit_price;
+			const auto price_found_it = _price_order_hash.find(price);
 
-            const auto price_level_found_it = _orders.find(price);
-            if( _orders.end() != price_level_found_it )
-            {
-                level_sizes_t &levels = price_level_found_it->second;
+			if (_price_order_hash.end() != price_found_it)
+			{
+				order_book_it_t order_book_it = price_found_it->second;
+				level_sizes_t &levels = order_book_it->second;
 				levels.push_front(order.size);
-                _order_ids[order.id] = std::make_pair( price_level_found_it, levels.begin() );
-            }
-            else
-            {
-                const auto key_value = std::make_pair(price, level_sizes_t{order.size});
-                const auto insert_result = _orders.insert( key_value );
+				_order_ids[order.id] = std::make_pair(order_book_it, levels.begin());
+			}
+			else
+			{
+	            const auto key_value = std::make_pair(price, level_sizes_t{order.size});
+	            const auto insert_result = _orders.insert( key_value );
 				_order_ids[order.id] = std::make_pair(insert_result.first, insert_result.first->second.begin());
-            }
+				_price_order_hash[price] = insert_result.first;
+			}
+
             _total_orders += order.size;
 
 			notify_observers(order);
@@ -88,7 +91,10 @@ namespace Pricer
             {
                 levels.erase(order_ptr);
 				if (levels.empty())
+				{
 					_orders.erase(order_kv.first);
+					_price_order_hash.erase(order_price);
+				}
 
 				_order_ids.erase(order.id);
 				_total_orders -= previous_size;
