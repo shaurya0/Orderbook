@@ -3,18 +3,9 @@
 #include "OrderParser.h"
 #include "OrderBook.h"
 #include "OrderBookManager.h"
-#include <iomanip>
 #include <iostream>
 #include <stdlib.h>
-#include <signal.h>
-#include <atomic>
 #include <utility>
-#include <string>
-#include <unordered_map>
-#include <numeric>
-#include <deque>
-#include <list>
-#include <map>
 
 namespace Pricer
 {
@@ -43,16 +34,16 @@ namespace Pricer
 			for (const auto &levels : order_book.get_orders())
 			{
 				uint32_t price = levels.first;
-				for (const auto &levels : levels.second)
+				for (const auto &order_size : levels.second)
 				{
 					uint32_t shares = 0;
-					if (levels.second + num_shares > pricing_state.target_size)
+					if (order_size + num_shares > pricing_state.target_size)
 					{
 						shares = pricing_state.target_size - num_shares;
 					}
 					else
 					{
-						shares = levels.second;
+						shares = order_size;
 					}
 					result += price*shares;
 					num_shares += shares;
@@ -69,8 +60,9 @@ namespace Pricer
 
         enum class result_type {INCOME, EXPENSES};
 
-		bool compute_new_result(uint32_t total_orders, const Order &order, result_type rt, PricingState &pricing_state, char msg)
-		{
+        bool compute_new_result( uint32_t total_orders, PricingState &pricing_state, const Order &order, char msg, result_type rt)
+        {
+			bool compute = true;
             if (total_orders < pricing_state.target_size)
             {
                 const bool state_changed = pricing_state.previous_state == OrderState::FULFILLED;
@@ -82,41 +74,31 @@ namespace Pricer
                 return false;
             }
 
+            // TODO: optimization, don't redo computation if order reduced or added was worse than the worst order in current result
 
-			bool compute = true;
-			if (pricing_state.previous_state == OrderState::FULFILLED)
-			{
-                uint32_t price = 0;
-				if (order.type == ORDER_TYPE::ADD)
-				{
-					const auto &add_order = boost::get<AddOrder>(order._order);
-                    price = add_order.limit_price;
-				}
-				else
-				{
-					const auto &reduce_order = boost::get<ReduceOrder>(order._order);
-                    price = reduce_order.price;
-                }
-
-				if (rt == result_type::INCOME)
-				{
-					if (price < pricing_state.worst_price)
-						compute = false;
-				}
-				else
-				{
-					if (price > pricing_state.worst_price)
-						compute = false;
-				}
-			}
+			// if (pricing_state.previous_state == OrderState::FULFILLED)
+			// {
+			// 	uint32_t price = 0;
+			// 	if (order.type == ORDER_TYPE::ADD)
+			// 	{
+			// 		const auto &add_order = boost::get<AddOrder>(order._order);
+			// 		price = add_order.limit_price;
+			// 	}
+			// 	else
+			// 	{
+			// 		const auto &reduce_order = boost::get<ReduceOrder>(order._order);
+			// 		price = reduce_order.price;
+			// 	}
+			// }
 
 			return compute;
-		}
 
+        }
 
         void compute_pricer_result( const Order &order, result_type rt )
         {
             PricingState *pricing_state = nullptr;
+			std::pair<uint32_t, uint32_t> result_shares = std::make_pair(0, 0);
             char msg;
             uint32_t total_orders = 0;
             if (rt == result_type::INCOME)
@@ -132,8 +114,7 @@ namespace Pricer
                 total_orders = _order_book_manager.get_ask_order_book().get_total_orders();
             }
 
-			std::pair<uint32_t, uint32_t> result_shares = std::make_pair(pricing_state->last_result, 0);
-			bool compute = compute_new_result(total_orders, order, rt, *pricing_state, msg);
+            bool compute = compute_new_result( total_orders, *pricing_state, order, msg, rt );
 
 			if (compute)
 			{
@@ -145,8 +126,13 @@ namespace Pricer
 				const bool result_changed = result_shares.first != pricing_state->last_result;
 				if ( result_changed)
 				{
-					float result = Utils::convert_price(result_shares.first);
-					std::cout << order.milliseconds << " " << msg << " " << std::setprecision(2) << std::fixed << result << std::endl;
+					uint32_t quotient = result_shares.first / PRICE_SCALING;
+					uint32_t fraction = result_shares.first % PRICE_SCALING;
+					std::cout << order.milliseconds << " " << msg << " " << quotient << ".";
+					if (fraction < 10)
+						std::cout << "0";
+					std::cout << fraction << std::endl;
+
 					pricing_state->previous_state = OrderState::FULFILLED;
 				}
 			}

@@ -4,18 +4,16 @@
 
 namespace Pricer
 {
+	constexpr uint32_t PRICE_SCALING = 100;
+	constexpr float FPRICE_SCALING = 100.0;
     class Utils
     {
     public:
-        static uint32_t convert_price( float price )
+        static uint32_t convert_price( double price )
         {
-            return static_cast<uint32_t>( price*100 );
+            return static_cast<uint32_t>(price*FPRICE_SCALING);
         }
 
-        static float convert_price( uint32_t price )
-        {
-            return static_cast<float>( price )/100.0f;
-        }
     };
 
     enum class ErrorCode
@@ -41,8 +39,6 @@ namespace Pricer
         case ErrorCode::REDUCE_FAILED:
             std::cerr << "failed to reduce order" << std::endl;
             break;
-		default:
-			break;
         }
     }
 }

@@ -3,16 +3,13 @@
 #include <iostream>
 #include <stdlib.h>
 #include <signal.h>
+#include <exception>
 #include <atomic>
 #include <utility>
-#include <unordered_map>
-#include <deque>
-#include <list>
-#include <map>
 
 using namespace Pricer;
 
-static std::atomic<bool> cancelled = false;
+static std::atomic<bool> cancelled( false );
 
 void run_pricing_engine(uint32_t target_size)
 {
@@ -51,19 +48,28 @@ int main(int argc, char *argv[])
 	{
 		if (argc != 2)
 		{
+			#ifdef _MSC_VER
 			throw std::exception("needs to be 1 argument");
+			#else
+			throw std::exception();
+			#endif
 		}
 		long int target_size = strtol(argv[1], nullptr, 10);
 
 		if (target_size < 0)
 		{
+			#ifdef _MSC_VER
 			throw std::exception("negative target");
+			#else
+			throw std::exception();
+			#endif
 		}
 		std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
 		run_pricing_engine(static_cast<uint32_t>(target_size));
+
 		std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-		std::cerr << "elapsed time (ms) = " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << std::endl;
+		const auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
 	}
 	catch (const std::exception &ex)
 	{

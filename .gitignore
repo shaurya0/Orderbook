@@ -1,2 +1,7 @@
 Debug
 *.vcx*
+*zip
+*#
+*Cache.txt
+*.txt
+CMakeFiles
