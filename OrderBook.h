@@ -38,6 +38,7 @@ namespace Pricer
 		}
 
     public:
+		OrderBook() : _total_orders(0){}
         Pricer::ErrorCode add_order(const Pricer::Order &order) noexcept
         {
             const bool found_order = _order_ids.end() != _order_ids.find(order.id);
